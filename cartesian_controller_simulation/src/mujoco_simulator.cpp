@@ -39,10 +39,15 @@
 
 #include "cartesian_controller_simulation/mujoco_simulator.h"
 
+#include<algorithm>
+#include <atomic>
 #include <memory>
+#include <iostream>
 
 namespace cartesian_controller_simulation
 {
+std::atomic<bool> first_write{false};
+
 MuJoCoSimulator::MuJoCoSimulator() {}
 
 void MuJoCoSimulator::controlCB(const mjModel * m, mjData * d)
@@ -57,8 +62,17 @@ void MuJoCoSimulator::controlCBImpl([[maybe_unused]] const mjModel * m, mjData *
   for (size_t i = 0; i < pos_cmd.size(); ++i)
   {
     // Joint-level impedance control
-    d->ctrl[i] = stiff[i] * (pos_cmd[i] - d->qpos[i]) +             // stiffness
-                 damp[i] * (vel_cmd[i] - d->actuator_velocity[i]);  // damping
+    if (std::isfinite(pos_cmd[i]) && std::isfinite(vel_cmd[i])) {
+      d->ctrl[i] = stiff[i] * (pos_cmd[i] - d->qpos[i]) +           // stiffness
+        damp[i] * (vel_cmd[i] - d->actuator_velocity[i]);           // damping
+    } else {
+      std::cout << "commands/params not finite" << std::endl;
+      d->ctrl[i] = - damp[i] * d->actuator_velocity[i];           // damping
+    }
+    if (!std::isfinite(d->ctrl[i])) {
+      d->ctrl[i] = 0.0;
+      std::cout << "output not finite" << std::endl;
+    }
   }
   command_mutex.unlock();
 }
@@ -70,12 +84,12 @@ int MuJoCoSimulator::simulate(const std::string & model_xml)
 
 int MuJoCoSimulator::simulateImpl(const std::string & model_xml)
 {
-  // Make sure that the ROS2-control system_interface only gets valid data in read().
+  // Make sure that the ros2_control system_interface only gets valid data in read().
   // We lock until we are done with simulation setup.
   state_mutex.lock();
 
   // load and compile model
-  char error[1000] = "Could not load binary model";
+  char error[1000] = "Could not load XML model";
   m = mj_loadXML(model_xml.c_str(), nullptr, error, 1000);
   if (!m)
   {
@@ -87,14 +101,14 @@ int MuJoCoSimulator::simulateImpl(const std::string & model_xml)
   d = mj_makeData(m);
   mju_copy(d->qpos, m->key_qpos, m->nq);
 
-  // Initialize buffers for ROS2-control.
+  // Initialize buffers for ros2_control.
   pos_state.resize(m->nu);
   vel_state.resize(m->nu);
   eff_state.resize(m->nu);
-  pos_cmd.resize(m->nu);
-  vel_cmd.resize(m->nu);
-  stiff.resize(m->nu);
-  damp.resize(m->nu);
+  pos_cmd.resize(m->nu, std::numeric_limits<double>::quiet_NaN());
+  vel_cmd.resize(m->nu, std::numeric_limits<double>::quiet_NaN());
+  stiff.resize(m->nu, 0);
+  damp.resize(m->nu, 0);
 
   // Start where we are
   syncStates();
@@ -103,12 +117,16 @@ int MuJoCoSimulator::simulateImpl(const std::string & model_xml)
   // Connect our specific control input callback for MuJoCo's engine.
   mjcb_control = MuJoCoSimulator::controlCB;
 
+  std::cout << "wait for first write: " << first_write << std::endl;
+  while(first_write == false) {};
+  std::cout << "start simulation: " << first_write << std::endl;
+
   // Simulate in realtime
   while (true)
   {
     mj_step(m, d);
 
-    // Provide fresh data for ROS2-control
+    // Provide fresh data for ros2_control
     state_mutex.lock();
     syncStates();
     state_mutex.unlock();
@@ -120,7 +138,7 @@ int MuJoCoSimulator::simulateImpl(const std::string & model_xml)
 void MuJoCoSimulator::read(std::vector<double> & pos, std::vector<double> & vel,
                            std::vector<double> & eff)
 {
-  // Realtime in ROS2-control is more important than fresh data exchange.
+  // Realtime in ros2_control is more important than fresh data exchange.
   if (state_mutex.try_lock())
   {
     pos = pos_state;
@@ -133,14 +151,26 @@ void MuJoCoSimulator::read(std::vector<double> & pos, std::vector<double> & vel,
 void MuJoCoSimulator::write(const std::vector<double> & pos, const std::vector<double> & vel,
                             const std::vector<double> & stiff, const std::vector<double> & damp)
 {
-  // Realtime in ROS2-control is more important than fresh data exchange.
-  if (command_mutex.try_lock())
+  
+  if (std::none_of(pos.begin(), pos.end(),
+        [](double i) { return std::isnan(i); }) && 
+      std::none_of(vel.begin(), vel.end(),
+        [](double i) { return std::isnan(i); }) && 
+      std::none_of(stiff.begin(), stiff.end(),
+        [](double i) { return std::isnan(i); }) && 
+      std::none_of(damp.begin(), damp.end(),
+        [](double i) { return std::isnan(i); }))
   {
-    pos_cmd = pos;
-    vel_cmd = vel;
-    this->stiff = stiff;
-    this->damp = damp;
-    command_mutex.unlock();
+    first_write = true;
+    // Realtime in ros2_control is more important than fresh data exchange.
+    if (command_mutex.try_lock())
+    {
+      pos_cmd = pos;
+      vel_cmd = vel;
+      this->stiff = stiff;
+      this->damp = damp;
+      command_mutex.unlock();
+    }
   }
 }
 
