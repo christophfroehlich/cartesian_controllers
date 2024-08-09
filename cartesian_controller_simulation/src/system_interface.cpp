@@ -61,16 +61,14 @@ namespace cartesian_controller_simulation
 Simulator::CallbackReturn Simulator::on_init(const hardware_interface::HardwareInfo & info)
 {
   // Keep an internal copy of the given configuration
-  if (hardware_interface::SystemInterface::on_init(info) != Simulator::CallbackReturn::SUCCESS)
-  {
+  if (hardware_interface::SystemInterface::on_init(info) != Simulator::CallbackReturn::SUCCESS) {
     return Simulator::CallbackReturn::ERROR;
   }
 #elif defined CARTESIAN_CONTROLLERS_FOXY
 Simulator::return_type Simulator::configure(const hardware_interface::HardwareInfo & info)
 {
   // Keep an internal copy of the given configuration
-  if (configure_default(info) != return_type::OK)
-  {
+  if (configure_default(info) != return_type::OK) {
     return return_type::ERROR;
   }
 #endif
@@ -92,20 +90,18 @@ Simulator::return_type Simulator::configure(const hardware_interface::HardwareIn
   m_damping.resize(info_.joints.size(), 0);
 
   // Initialize joint gains for the simulator
-  for (size_t i = 0; i < info_.joints.size(); ++i)
-  {
+  for (size_t i = 0; i < info_.joints.size(); ++i) {
     m_stiffness[i] = std::stod(info_.joints[i].parameters.at("p"));
     m_damping[i] = std::stod(info_.joints[i].parameters.at("d"));
   }
 
-  for (const hardware_interface::ComponentInfo & joint : info_.joints)
-  {
-    if (joint.command_interfaces.size() != 2)
-    {
-      RCLCPP_ERROR(rclcpp::get_logger("Simulator"),
-                   "Joint '%s' needs two possible command interfaces.", joint.name.c_str());
+  for (const hardware_interface::ComponentInfo & joint : info_.joints) {
+    if (joint.command_interfaces.size() != 2) {
+      RCLCPP_ERROR(
+        rclcpp::get_logger("Simulator"),
+        "Joint '%s' needs two possible command interfaces.", joint.name.c_str());
 #if defined CARTESIAN_CONTROLLERS_GALACTIC || defined CARTESIAN_CONTROLLERS_HUMBLE || \
-  defined CARTESIAN_CONTROLLERS_IRON
+      defined CARTESIAN_CONTROLLERS_IRON
       return Simulator::CallbackReturn::ERROR;
 #elif defined CARTESIAN_CONTROLLERS_FOXY
       return Simulator::return_type::ERROR;
@@ -113,26 +109,27 @@ Simulator::return_type Simulator::configure(const hardware_interface::HardwareIn
     }
 
     if (!(joint.command_interfaces[0].name == hardware_interface::HW_IF_POSITION ||
-          joint.command_interfaces[1].name == hardware_interface::HW_IF_VELOCITY))
+      joint.command_interfaces[1].name == hardware_interface::HW_IF_VELOCITY))
     {
-      RCLCPP_ERROR(rclcpp::get_logger("Simulator"),
-                   "Joint '%s' needs the following command interfaces in that order: %s, %s.",
-                   joint.name.c_str(), hardware_interface::HW_IF_POSITION,
-                   hardware_interface::HW_IF_VELOCITY);
+      RCLCPP_ERROR(
+        rclcpp::get_logger("Simulator"),
+        "Joint '%s' needs the following command interfaces in that order: %s, %s.",
+        joint.name.c_str(), hardware_interface::HW_IF_POSITION,
+        hardware_interface::HW_IF_VELOCITY);
 #if defined CARTESIAN_CONTROLLERS_GALACTIC || defined CARTESIAN_CONTROLLERS_HUMBLE || \
-  defined CARTESIAN_CONTROLLERS_IRON
+      defined CARTESIAN_CONTROLLERS_IRON
       return Simulator::CallbackReturn::ERROR;
 #elif defined CARTESIAN_CONTROLLERS_FOXY
       return Simulator::return_type::ERROR;
 #endif
     }
 
-    if (joint.state_interfaces.size() != 3)
-    {
-      RCLCPP_ERROR(rclcpp::get_logger("Simulator"), "Joint '%s' needs 3 state interfaces.",
-                   joint.name.c_str());
+    if (joint.state_interfaces.size() != 3) {
+      RCLCPP_ERROR(
+        rclcpp::get_logger("Simulator"), "Joint '%s' needs 3 state interfaces.",
+        joint.name.c_str());
 #if defined CARTESIAN_CONTROLLERS_GALACTIC || defined CARTESIAN_CONTROLLERS_HUMBLE || \
-  defined CARTESIAN_CONTROLLERS_IRON
+      defined CARTESIAN_CONTROLLERS_IRON
       return Simulator::CallbackReturn::ERROR;
 #elif defined CARTESIAN_CONTROLLERS_FOXY
       return Simulator::return_type::ERROR;
@@ -140,15 +137,16 @@ Simulator::return_type Simulator::configure(const hardware_interface::HardwareIn
     }
 
     if (!(joint.state_interfaces[0].name == hardware_interface::HW_IF_POSITION ||
-          joint.state_interfaces[0].name == hardware_interface::HW_IF_VELOCITY ||
-          joint.state_interfaces[0].name == hardware_interface::HW_IF_EFFORT))
+      joint.state_interfaces[0].name == hardware_interface::HW_IF_VELOCITY ||
+      joint.state_interfaces[0].name == hardware_interface::HW_IF_EFFORT))
     {
-      RCLCPP_ERROR(rclcpp::get_logger("Simulator"),
-                   "Joint '%s' needs the following state interfaces in that order: %s, %s, and %s.",
-                   joint.name.c_str(), hardware_interface::HW_IF_POSITION,
-                   hardware_interface::HW_IF_VELOCITY, hardware_interface::HW_IF_EFFORT);
+      RCLCPP_ERROR(
+        rclcpp::get_logger("Simulator"),
+        "Joint '%s' needs the following state interfaces in that order: %s, %s, and %s.",
+        joint.name.c_str(), hardware_interface::HW_IF_POSITION,
+        hardware_interface::HW_IF_VELOCITY, hardware_interface::HW_IF_EFFORT);
 #if defined CARTESIAN_CONTROLLERS_GALACTIC || defined CARTESIAN_CONTROLLERS_HUMBLE || \
-  defined CARTESIAN_CONTROLLERS_IRON
+      defined CARTESIAN_CONTROLLERS_IRON
       return Simulator::CallbackReturn::ERROR;
 #elif defined CARTESIAN_CONTROLLERS_FOXY
       return Simulator::return_type::ERROR;
@@ -167,14 +165,16 @@ Simulator::return_type Simulator::configure(const hardware_interface::HardwareIn
 std::vector<hardware_interface::StateInterface> Simulator::export_state_interfaces()
 {
   std::vector<hardware_interface::StateInterface> state_interfaces;
-  for (std::size_t i = 0; i < info_.joints.size(); i++)
-  {
-    state_interfaces.emplace_back(hardware_interface::StateInterface(
-      info_.joints[i].name, hardware_interface::HW_IF_POSITION, &m_positions[i]));
-    state_interfaces.emplace_back(hardware_interface::StateInterface(
-      info_.joints[i].name, hardware_interface::HW_IF_VELOCITY, &m_velocities[i]));
-    state_interfaces.emplace_back(hardware_interface::StateInterface(
-      info_.joints[i].name, hardware_interface::HW_IF_EFFORT, &m_efforts[i]));
+  for (std::size_t i = 0; i < info_.joints.size(); i++) {
+    state_interfaces.emplace_back(
+      hardware_interface::StateInterface(
+        info_.joints[i].name, hardware_interface::HW_IF_POSITION, &m_positions[i]));
+    state_interfaces.emplace_back(
+      hardware_interface::StateInterface(
+        info_.joints[i].name, hardware_interface::HW_IF_VELOCITY, &m_velocities[i]));
+    state_interfaces.emplace_back(
+      hardware_interface::StateInterface(
+        info_.joints[i].name, hardware_interface::HW_IF_EFFORT, &m_efforts[i]));
   }
 
   return state_interfaces;
@@ -183,16 +183,19 @@ std::vector<hardware_interface::StateInterface> Simulator::export_state_interfac
 std::vector<hardware_interface::CommandInterface> Simulator::export_command_interfaces()
 {
   std::vector<hardware_interface::CommandInterface> command_interfaces;
-  for (std::size_t i = 0; i < info_.joints.size(); i++)
-  {
-    command_interfaces.emplace_back(hardware_interface::CommandInterface(
-      info_.joints[i].name, hardware_interface::HW_IF_POSITION, &m_position_commands[i]));
-    command_interfaces.emplace_back(hardware_interface::CommandInterface(
-      info_.joints[i].name, hardware_interface::HW_IF_VELOCITY, &m_velocity_commands[i]));
-    command_interfaces.emplace_back(hardware_interface::CommandInterface(
-      info_.joints[i].name, cartesian_controller_simulation::HW_IF_STIFFNESS, &m_stiffness[i]));
-    command_interfaces.emplace_back(hardware_interface::CommandInterface(
-      info_.joints[i].name, cartesian_controller_simulation::HW_IF_DAMPING, &m_damping[i]));
+  for (std::size_t i = 0; i < info_.joints.size(); i++) {
+    command_interfaces.emplace_back(
+      hardware_interface::CommandInterface(
+        info_.joints[i].name, hardware_interface::HW_IF_POSITION, &m_position_commands[i]));
+    command_interfaces.emplace_back(
+      hardware_interface::CommandInterface(
+        info_.joints[i].name, hardware_interface::HW_IF_VELOCITY, &m_velocity_commands[i]));
+    command_interfaces.emplace_back(
+      hardware_interface::CommandInterface(
+        info_.joints[i].name, cartesian_controller_simulation::HW_IF_STIFFNESS, &m_stiffness[i]));
+    command_interfaces.emplace_back(
+      hardware_interface::CommandInterface(
+        info_.joints[i].name, cartesian_controller_simulation::HW_IF_DAMPING, &m_damping[i]));
   }
 
   return command_interfaces;
@@ -222,8 +225,9 @@ Simulator::return_type Simulator::stop()
 #endif
 
 #if defined CARTESIAN_CONTROLLERS_HUMBLE || defined CARTESIAN_CONTROLLERS_IRON
-Simulator::return_type Simulator::read([[maybe_unused]] const rclcpp::Time & time,
-                                       [[maybe_unused]] const rclcpp::Duration & period)
+Simulator::return_type Simulator::read(
+  [[maybe_unused]] const rclcpp::Time & time,
+  [[maybe_unused]] const rclcpp::Duration & period)
 #elif defined CARTESIAN_CONTROLLERS_GALACTIC || defined CARTESIAN_CONTROLLERS_FOXY
 Simulator::return_type Simulator::read()
 #endif
@@ -232,8 +236,9 @@ Simulator::return_type Simulator::read()
 
   // Start with the current positions as safe default, but let active
   // controllers overrride them in each cycle.
-  if (std::any_of(m_position_commands.begin(), m_position_commands.end(),
-                  [](double i) { return std::isnan(i); }))
+  if (std::any_of(
+      m_position_commands.begin(), m_position_commands.end(),
+      [](double i) {return std::isnan(i);}))
   {
     m_position_commands = m_positions;
   }
@@ -248,14 +253,16 @@ Simulator::return_type Simulator::read()
 }
 
 #if defined CARTESIAN_CONTROLLERS_HUMBLE || defined CARTESIAN_CONTROLLERS_IRON
-Simulator::return_type Simulator::write([[maybe_unused]] const rclcpp::Time & time,
-                                        [[maybe_unused]] const rclcpp::Duration & period)
+Simulator::return_type Simulator::write(
+  [[maybe_unused]] const rclcpp::Time & time,
+  [[maybe_unused]] const rclcpp::Duration & period)
 #elif defined CARTESIAN_CONTROLLERS_GALACTIC || defined CARTESIAN_CONTROLLERS_FOXY
 Simulator::return_type Simulator::write()
 #endif
 {
-  MuJoCoSimulator::getInstance().write(m_position_commands, m_velocity_commands, m_stiffness,
-                                       m_damping);
+  MuJoCoSimulator::getInstance().write(
+    m_position_commands, m_velocity_commands, m_stiffness,
+    m_damping);
   return return_type::OK;
 }
 
@@ -263,5 +270,6 @@ Simulator::return_type Simulator::write()
 
 #include "pluginlib/class_list_macros.hpp"
 
-PLUGINLIB_EXPORT_CLASS(cartesian_controller_simulation::Simulator,
-                       hardware_interface::SystemInterface)
+PLUGINLIB_EXPORT_CLASS(
+  cartesian_controller_simulation::Simulator,
+  hardware_interface::SystemInterface)

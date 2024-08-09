@@ -39,7 +39,7 @@
 
 #include "cartesian_controller_simulation/mujoco_simulator.h"
 
-#include<algorithm>
+#include <algorithm>
 #include <atomic>
 #include <memory>
 #include <iostream>
@@ -59,15 +59,14 @@ void MuJoCoSimulator::controlCBImpl([[maybe_unused]] const mjModel * m, mjData *
 {
   command_mutex.lock();
 
-  for (size_t i = 0; i < pos_cmd.size(); ++i)
-  {
+  for (size_t i = 0; i < pos_cmd.size(); ++i) {
     // Joint-level impedance control
     if (std::isfinite(pos_cmd[i]) && std::isfinite(vel_cmd[i])) {
       d->ctrl[i] = stiff[i] * (pos_cmd[i] - d->qpos[i]) +           // stiffness
         damp[i] * (vel_cmd[i] - d->actuator_velocity[i]);           // damping
     } else {
       std::cout << "commands/params not finite" << std::endl;
-      d->ctrl[i] = - damp[i] * d->actuator_velocity[i];           // damping
+      d->ctrl[i] = -damp[i] * d->actuator_velocity[i];            // damping
     }
     if (!std::isfinite(d->ctrl[i])) {
       d->ctrl[i] = 0.0;
@@ -91,8 +90,7 @@ int MuJoCoSimulator::simulateImpl(const std::string & model_xml)
   // load and compile model
   char error[1000] = "Could not load XML model";
   m = mj_loadXML(model_xml.c_str(), nullptr, error, 1000);
-  if (!m)
-  {
+  if (!m) {
     mju_error_s("Load model error: %s", error);
     return 1;
   }
@@ -118,12 +116,11 @@ int MuJoCoSimulator::simulateImpl(const std::string & model_xml)
   mjcb_control = MuJoCoSimulator::controlCB;
 
   std::cout << "wait for first write: " << first_write << std::endl;
-  while(first_write == false) {};
+  while (first_write == false) {}
   std::cout << "start simulation: " << first_write << std::endl;
 
   // Simulate in realtime
-  while (true)
-  {
+  while (true) {
     mj_step(m, d);
 
     // Provide fresh data for ros2_control
@@ -135,12 +132,12 @@ int MuJoCoSimulator::simulateImpl(const std::string & model_xml)
   return 0;
 }
 
-void MuJoCoSimulator::read(std::vector<double> & pos, std::vector<double> & vel,
-                           std::vector<double> & eff)
+void MuJoCoSimulator::read(
+  std::vector<double> & pos, std::vector<double> & vel,
+  std::vector<double> & eff)
 {
   // Realtime in ros2_control is more important than fresh data exchange.
-  if (state_mutex.try_lock())
-  {
+  if (state_mutex.try_lock()) {
     pos = pos_state;
     vel = vel_state;
     eff = eff_state;
@@ -148,23 +145,27 @@ void MuJoCoSimulator::read(std::vector<double> & pos, std::vector<double> & vel,
   }
 }
 
-void MuJoCoSimulator::write(const std::vector<double> & pos, const std::vector<double> & vel,
-                            const std::vector<double> & stiff, const std::vector<double> & damp)
+void MuJoCoSimulator::write(
+  const std::vector<double> & pos, const std::vector<double> & vel,
+  const std::vector<double> & stiff, const std::vector<double> & damp)
 {
-  
-  if (std::none_of(pos.begin(), pos.end(),
-        [](double i) { return std::isnan(i); }) && 
-      std::none_of(vel.begin(), vel.end(),
-        [](double i) { return std::isnan(i); }) && 
-      std::none_of(stiff.begin(), stiff.end(),
-        [](double i) { return std::isnan(i); }) && 
-      std::none_of(damp.begin(), damp.end(),
-        [](double i) { return std::isnan(i); }))
+
+  if (std::none_of(
+      pos.begin(), pos.end(),
+      [](double i) {return std::isnan(i);}) &&
+    std::none_of(
+      vel.begin(), vel.end(),
+      [](double i) {return std::isnan(i);}) &&
+    std::none_of(
+      stiff.begin(), stiff.end(),
+      [](double i) {return std::isnan(i);}) &&
+    std::none_of(
+      damp.begin(), damp.end(),
+      [](double i) {return std::isnan(i);}))
   {
     first_write = true;
     // Realtime in ros2_control is more important than fresh data exchange.
-    if (command_mutex.try_lock())
-    {
+    if (command_mutex.try_lock()) {
       pos_cmd = pos;
       vel_cmd = vel;
       this->stiff = stiff;
@@ -176,8 +177,7 @@ void MuJoCoSimulator::write(const std::vector<double> & pos, const std::vector<d
 
 void MuJoCoSimulator::syncStates()
 {
-  for (auto i = 0; i < m->nu; ++i)
-  {
+  for (auto i = 0; i < m->nu; ++i) {
     pos_state[i] = d->qpos[i];
     vel_state[i] = d->actuator_velocity[i];
     eff_state[i] = d->actuator_force[i];

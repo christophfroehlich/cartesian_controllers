@@ -113,8 +113,9 @@ public:
 
   // Non-blocking
   void read(std::vector<double> & pos, std::vector<double> & vel, std::vector<double> & eff);
-  void write(const std::vector<double> & pos, const std::vector<double> & vel,
-             const std::vector<double> & stiff, const std::vector<double> & damp);
+  void write(
+    const std::vector<double> & pos, const std::vector<double> & vel,
+    const std::vector<double> & stiff, const std::vector<double> & damp);
 };
 
 }  // namespace cartesian_controller_simulation
