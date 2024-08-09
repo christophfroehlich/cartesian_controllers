@@ -56,22 +56,12 @@
 
 namespace cartesian_controller_simulation
 {
-#if defined CARTESIAN_CONTROLLERS_GALACTIC || defined CARTESIAN_CONTROLLERS_HUMBLE || \
-  defined CARTESIAN_CONTROLLERS_IRON
 Simulator::CallbackReturn Simulator::on_init(const hardware_interface::HardwareInfo & info)
 {
   // Keep an internal copy of the given configuration
   if (hardware_interface::SystemInterface::on_init(info) != Simulator::CallbackReturn::SUCCESS) {
     return Simulator::CallbackReturn::ERROR;
   }
-#elif defined CARTESIAN_CONTROLLERS_FOXY
-Simulator::return_type Simulator::configure(const hardware_interface::HardwareInfo & info)
-{
-  // Keep an internal copy of the given configuration
-  if (configure_default(info) != return_type::OK) {
-    return return_type::ERROR;
-  }
-#endif
   // Start the simulator in parallel.
   // Let the thread's destructor clean-up all resources
   // once users close the simulation window.
@@ -90,12 +80,7 @@ Simulator::return_type Simulator::configure(const hardware_interface::HardwareIn
       RCLCPP_ERROR(
         rclcpp::get_logger("Simulator"),
         "Joint '%s' needs two possible command interfaces.", joint.name.c_str());
-#if defined CARTESIAN_CONTROLLERS_GALACTIC || defined CARTESIAN_CONTROLLERS_HUMBLE || \
-      defined CARTESIAN_CONTROLLERS_IRON
       return Simulator::CallbackReturn::ERROR;
-#elif defined CARTESIAN_CONTROLLERS_FOXY
-      return Simulator::return_type::ERROR;
-#endif
     }
 
     if (!(joint.command_interfaces[0].name == hardware_interface::HW_IF_POSITION ||
@@ -106,24 +91,14 @@ Simulator::return_type Simulator::configure(const hardware_interface::HardwareIn
         "Joint '%s' needs the following command interfaces in that order: %s, %s.",
         joint.name.c_str(), hardware_interface::HW_IF_POSITION,
         hardware_interface::HW_IF_VELOCITY);
-#if defined CARTESIAN_CONTROLLERS_GALACTIC || defined CARTESIAN_CONTROLLERS_HUMBLE || \
-      defined CARTESIAN_CONTROLLERS_IRON
       return Simulator::CallbackReturn::ERROR;
-#elif defined CARTESIAN_CONTROLLERS_FOXY
-      return Simulator::return_type::ERROR;
-#endif
     }
 
     if (joint.state_interfaces.size() != 3) {
       RCLCPP_ERROR(
         rclcpp::get_logger("Simulator"), "Joint '%s' needs 3 state interfaces.",
         joint.name.c_str());
-#if defined CARTESIAN_CONTROLLERS_GALACTIC || defined CARTESIAN_CONTROLLERS_HUMBLE || \
-      defined CARTESIAN_CONTROLLERS_IRON
       return Simulator::CallbackReturn::ERROR;
-#elif defined CARTESIAN_CONTROLLERS_FOXY
-      return Simulator::return_type::ERROR;
-#endif
     }
 
     if (!(joint.state_interfaces[0].name == hardware_interface::HW_IF_POSITION ||
@@ -135,21 +110,11 @@ Simulator::return_type Simulator::configure(const hardware_interface::HardwareIn
         "Joint '%s' needs the following state interfaces in that order: %s, %s, and %s.",
         joint.name.c_str(), hardware_interface::HW_IF_POSITION,
         hardware_interface::HW_IF_VELOCITY, hardware_interface::HW_IF_EFFORT);
-#if defined CARTESIAN_CONTROLLERS_GALACTIC || defined CARTESIAN_CONTROLLERS_HUMBLE || \
-      defined CARTESIAN_CONTROLLERS_IRON
       return Simulator::CallbackReturn::ERROR;
-#elif defined CARTESIAN_CONTROLLERS_FOXY
-      return Simulator::return_type::ERROR;
-#endif
     }
   }
 
-#if defined CARTESIAN_CONTROLLERS_GALACTIC || defined CARTESIAN_CONTROLLERS_HUMBLE || \
-  defined CARTESIAN_CONTROLLERS_IRON
   return Simulator::CallbackReturn::SUCCESS;
-#elif defined CARTESIAN_CONTROLLERS_FOXY
-  return Simulator::return_type::OK;
-#endif
 }
 
 std::vector<hardware_interface::StateInterface> Simulator::export_state_interfaces()
@@ -194,27 +159,9 @@ Simulator::return_type Simulator::prepare_command_mode_switch(
   return return_type::OK;
 }
 
-#if defined CARTESIAN_CONTROLLERS_FOXY
-Simulator::return_type Simulator::start()
-{
-  this->status_ = hardware_interface::status::STARTED;
-  return return_type::OK;
-}
-
-Simulator::return_type Simulator::stop()
-{
-  this->status_ = hardware_interface::status::STOPPED;
-  return return_type::OK;
-}
-#endif
-
-#if defined CARTESIAN_CONTROLLERS_HUMBLE || defined CARTESIAN_CONTROLLERS_IRON
 Simulator::return_type Simulator::read(
   [[maybe_unused]] const rclcpp::Time & time,
   [[maybe_unused]] const rclcpp::Duration & period)
-#elif defined CARTESIAN_CONTROLLERS_GALACTIC || defined CARTESIAN_CONTROLLERS_FOXY
-Simulator::return_type Simulator::read()
-#endif
 {
   MuJoCoSimulator::getInstance().read(m_positions, m_velocities, m_efforts);
 
@@ -230,13 +177,9 @@ Simulator::return_type Simulator::read()
   return return_type::OK;
 }
 
-#if defined CARTESIAN_CONTROLLERS_HUMBLE || defined CARTESIAN_CONTROLLERS_IRON
 Simulator::return_type Simulator::write(
   [[maybe_unused]] const rclcpp::Time & time,
   [[maybe_unused]] const rclcpp::Duration & period)
-#elif defined CARTESIAN_CONTROLLERS_GALACTIC || defined CARTESIAN_CONTROLLERS_FOXY
-Simulator::return_type Simulator::write()
-#endif
 {
   MuJoCoSimulator::getInstance().write(m_position_commands, m_velocity_commands);
   return return_type::OK;

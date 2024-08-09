@@ -60,7 +60,6 @@ target_include_directories(${PROJECT_NAME} PUBLIC
 )
 
 ament_target_dependencies(${PROJECT_NAME}
-        cartesian_controller_base
         hardware_interface
         pluginlib
         rclcpp
