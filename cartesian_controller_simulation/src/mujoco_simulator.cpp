@@ -98,7 +98,7 @@ int MuJoCoSimulator::simulateImpl(
   state_mutex.lock();
 
   // parse XML
-  char error[1000] = "Could not load XML model";
+  char error[1000] = "";
   mjSpec * spec = mj_parseXML(model_xml.c_str(), nullptr, error, 1000);
 
   // add actuator settings to model
@@ -106,35 +106,64 @@ int MuJoCoSimulator::simulateImpl(
   def->actuator->biastype = mjBIAS_AFFINE;
   def->actuator->gaintype = mjGAIN_FIXED;
   def->actuator->trntype = mjTRN_JOINT;
-  double kp = 1000;
-  double kv = 0.5;
-  for (auto info : hw_info) {
-    mjsActuator * pact = mjs_addActuator(spec, def);
-    const std::string joint = info.name;
-    mjs_setString(pact->name, (joint + "pos").c_str());
-    mjs_setString(pact->target, joint.c_str());
+  double kp, kv;
+  std::vector<double> init_val;
+  for (auto joint_info : hw_info) {
+    if (joint_info.command_interfaces.size() == 2 &&
+      joint_info.command_interfaces.at(0).name == "position")
+    {
+      mjsActuator * pact = mjs_addActuator(spec, def);
+      const std::string joint_name = joint_info.name;
+      mjs_setString(pact->name, (joint_name + "pos").c_str());
+      mjs_setString(pact->target, joint_name.c_str());
 
-    auto it = info.parameters.find("p");
-    if (it != info.parameters.end()) {
-      kp = std::stod(it->second);
-    } else {
-      kp = 1000;
+      auto get_initial_value =
+        [joint_name](const hardware_interface::InterfaceInfo & interface_info) {
+          double initial_value{0.0};
+          if (!interface_info.initial_value.empty()) {
+            try {
+              initial_value = std::stod(interface_info.initial_value);
+              std::cout << "found initial value: " << initial_value << std::endl;
+            } catch (std::invalid_argument &) {
+              std::cout <<
+                "Failed converting initial_value string to real number for the joint "
+                        << joint_name
+                        << " and state interface " << interface_info.name
+                        << ". Actual value of parameter: " << interface_info.initial_value
+                        << ". Initial value will be set to 0.0" << std::endl;
+            }
+          }
+          return initial_value;
+        };
+
+      auto it = joint_info.parameters.find("p");
+      if (it != joint_info.parameters.end()) {
+        kp = std::stod(it->second);
+      } else {
+        kp = 1000;
+      }
+      it = joint_info.parameters.find("d");
+      if (it != joint_info.parameters.end()) {
+        kv = std::stod(it->second);
+      } else {
+        kv = 1000;
+      }
+      // register the state handles
+      for (unsigned int i = 0; i < joint_info.state_interfaces.size(); ++i) {
+        if (joint_info.state_interfaces[i].name == "position") {
+          init_val.push_back(get_initial_value(joint_info.state_interfaces.at(0)));
+        }
+      }
+
+      pact->gainprm[0] = kp;
+      pact->biasprm[1] = -kp;
+      pact->biasprm[2] = -kv;
+      // TODO: add something useful here
+      mjs_setString(pact->info, joint_name.c_str());
+
+      auto act_name = mjs_getString(pact->name);
+      std::cout << "Added actuator " << act_name << std::endl;
     }
-    it = info.parameters.find("d");
-    if (it != info.parameters.end()) {
-      kv = std::stod(it->second);
-    } else {
-      kv = 1000;
-    }
-
-    pact->gainprm[0] = kp;
-    pact->biasprm[1] = -kp;
-    pact->biasprm[2] = -kv;
-    // TODO: add something useful here
-    mjs_setString(pact->info, joint.c_str());
-
-    auto act_name = mjs_getString(pact->name);
-    std::cout << "Added actuator " << act_name << std::endl;
   }
 
   m = mj_compile(spec, nullptr);
@@ -151,9 +180,13 @@ int MuJoCoSimulator::simulateImpl(
   }
   std::cout << "Model adapted and saved to: " << xml_out << std::endl;
 
-  // Set initial state with the keyframe mechanism from xml
+  // Set initial state
   d = mj_makeData(m);
-  mju_copy(d->qpos, m->key_qpos, m->nq);
+  if (static_cast<int>(init_val.size()) != m->nq) {
+    mju_warning("Something went wrong while parsing the initial state");
+  } else {
+    mju_copy(d->qpos, init_val.data(), m->nq);
+  }
 
   // Initialize buffers for ros2_control.
   pos_state.resize(m->nu);

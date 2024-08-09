@@ -88,6 +88,4 @@
     </body>
   </worldbody>
 
-  <!-- Initial joint states for simulation -->
-  <include file="initial_joint_states.xml"/>
 </mujoco>
