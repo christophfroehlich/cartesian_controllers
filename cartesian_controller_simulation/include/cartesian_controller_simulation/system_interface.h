@@ -123,10 +123,6 @@ private:
   std::vector<double> m_velocities;
   std::vector<double> m_efforts;
 
-  // Anydrive gains
-  std::vector<double> m_stiffness;
-  std::vector<double> m_damping;
-
   // Run MuJoCo's solver in a separate thread
   std::thread m_simulation;
 

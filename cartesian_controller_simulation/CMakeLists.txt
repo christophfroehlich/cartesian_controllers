@@ -87,6 +87,7 @@ target_include_directories(mujoco_simulator PUBLIC
 # X11 OpenGL: link with libmujoco210.so, libglew.so, libGL.so
 target_link_libraries(mujoco_simulator PUBLIC
         ${MUJOCO_LIBRARIES}
+        hardware_interface::hardware_interface
 )
 
 

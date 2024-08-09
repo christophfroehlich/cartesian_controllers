@@ -60,40 +60,96 @@ void MuJoCoSimulator::controlCBImpl([[maybe_unused]] const mjModel * m, mjData *
   command_mutex.lock();
 
   for (size_t i = 0; i < pos_cmd.size(); ++i) {
-    // Joint-level impedance control
-    if (std::isfinite(pos_cmd[i]) && std::isfinite(vel_cmd[i])) {
-      d->ctrl[i] = stiff[i] * (pos_cmd[i] - d->qpos[i]) +           // stiffness
-        damp[i] * (vel_cmd[i] - d->actuator_velocity[i]);           // damping
+    // // Joint-level impedance control
+    // if (std::isfinite(pos_cmd[i]) && std::isfinite(vel_cmd[i])) {
+    //   d->ctrl[i] = stiff[i] * (pos_cmd[i] - d->qpos[i]) +           // stiffness
+    //     damp[i] * (vel_cmd[i] - d->actuator_velocity[i]);           // damping
+    // } else {
+    //   std::cout << "commands/params not finite" << std::endl;
+    //   d->ctrl[i] = -damp[i] * d->actuator_velocity[i];            // damping
+    // }
+    // if (!std::isfinite(d->ctrl[i])) {
+    //   d->ctrl[i] = 0.0;
+    //   std::cout << "output not finite" << std::endl;
+    // }
+    if (std::isfinite(pos_cmd[i])) {
+      d->ctrl[i] = pos_cmd[i];
     } else {
-      std::cout << "commands/params not finite" << std::endl;
-      d->ctrl[i] = -damp[i] * d->actuator_velocity[i];            // damping
-    }
-    if (!std::isfinite(d->ctrl[i])) {
-      d->ctrl[i] = 0.0;
-      std::cout << "output not finite" << std::endl;
+      std::cout << "commands not finite" << std::endl;
+      d->ctrl[i] = 0.;
     }
   }
   command_mutex.unlock();
 }
 
-int MuJoCoSimulator::simulate(const std::string & model_xml)
+int MuJoCoSimulator::simulate(
+  const std::string & model_xml,
+  const std::vector<hardware_interface::ComponentInfo> & hw_info)
 {
-  return getInstance().simulateImpl(model_xml);
+  return getInstance().simulateImpl(model_xml, hw_info);
 }
 
-int MuJoCoSimulator::simulateImpl(const std::string & model_xml)
+int MuJoCoSimulator::simulateImpl(
+  const std::string & model_xml,
+  const std::vector<hardware_interface::ComponentInfo> & hw_info)
 {
   // Make sure that the ros2_control system_interface only gets valid data in read().
   // We lock until we are done with simulation setup.
   state_mutex.lock();
 
-  // load and compile model
+  // parse XML
   char error[1000] = "Could not load XML model";
-  m = mj_loadXML(model_xml.c_str(), nullptr, error, 1000);
+  mjSpec * spec = mj_parseXML(model_xml.c_str(), nullptr, error, 1000);
+
+  // add actuator settings to model
+  auto def = mjs_getSpecDefault(spec);
+  def->actuator->biastype = mjBIAS_AFFINE;
+  def->actuator->gaintype = mjGAIN_FIXED;
+  def->actuator->trntype = mjTRN_JOINT;
+  double kp = 1000;
+  double kv = 0.5;
+  for (auto info : hw_info) {
+    mjsActuator * pact = mjs_addActuator(spec, def);
+    const std::string joint = info.name;
+    mjs_setString(pact->name, (joint + "pos").c_str());
+    mjs_setString(pact->target, joint.c_str());
+
+    auto it = info.parameters.find("p");
+    if (it != info.parameters.end()) {
+      kp = std::stod(it->second);
+    } else {
+      kp = 1000;
+    }
+    it = info.parameters.find("d");
+    if (it != info.parameters.end()) {
+      kv = std::stod(it->second);
+    } else {
+      kv = 1000;
+    }
+
+    pact->gainprm[0] = kp;
+    pact->biasprm[1] = -kp;
+    pact->biasprm[2] = -kv;
+    // TODO: add something useful here
+    mjs_setString(pact->info, joint.c_str());
+
+    auto act_name = mjs_getString(pact->name);
+    std::cout << "Added actuator " << act_name << std::endl;
+  }
+
+  m = mj_compile(spec, nullptr);
   if (!m) {
-    mju_error_s("Load model error: %s", error);
+    mju_error("Load model error");
     return 1;
   }
+
+  // Only compiled model can be written
+  std::string xml_out = model_xml + "changed.xml";
+  if (!mj_saveXML(spec, xml_out.c_str(), error, 1000)) {
+    mju_error("Save model error: %s", error);
+    return 1;
+  }
+  std::cout << "Model adapted and saved to: " << xml_out << std::endl;
 
   // Set initial state with the keyframe mechanism from xml
   d = mj_makeData(m);
@@ -105,8 +161,6 @@ int MuJoCoSimulator::simulateImpl(const std::string & model_xml)
   eff_state.resize(m->nu);
   pos_cmd.resize(m->nu, std::numeric_limits<double>::quiet_NaN());
   vel_cmd.resize(m->nu, std::numeric_limits<double>::quiet_NaN());
-  stiff.resize(m->nu, 0);
-  damp.resize(m->nu, 0);
 
   // Start where we are
   syncStates();
@@ -146,8 +200,7 @@ void MuJoCoSimulator::read(
 }
 
 void MuJoCoSimulator::write(
-  const std::vector<double> & pos, const std::vector<double> & vel,
-  const std::vector<double> & stiff, const std::vector<double> & damp)
+  const std::vector<double> & pos, const std::vector<double> & vel)
 {
 
   if (std::none_of(
@@ -155,12 +208,6 @@ void MuJoCoSimulator::write(
       [](double i) {return std::isnan(i);}) &&
     std::none_of(
       vel.begin(), vel.end(),
-      [](double i) {return std::isnan(i);}) &&
-    std::none_of(
-      stiff.begin(), stiff.end(),
-      [](double i) {return std::isnan(i);}) &&
-    std::none_of(
-      damp.begin(), damp.end(),
       [](double i) {return std::isnan(i);}))
   {
     first_write = true;
@@ -168,8 +215,6 @@ void MuJoCoSimulator::write(
     if (command_mutex.try_lock()) {
       pos_cmd = pos;
       vel_cmd = vel;
-      this->stiff = stiff;
-      this->damp = damp;
       command_mutex.unlock();
     }
   }
