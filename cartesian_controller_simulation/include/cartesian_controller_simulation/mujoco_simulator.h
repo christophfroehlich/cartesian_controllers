@@ -57,12 +57,13 @@ namespace cartesian_controller_simulation
  *
  * User code interfaces this class by getting an instance and calling static
  * functions on it.  It's designed to run with an independent simulation rate,
- * disjoint from ROS2-control in a separate thread.
+ * disjoint from ros2_control in a separate thread.
  *
  */
 class MuJoCoSimulator
 {
 private:
+  // Private constructor to enforce singleton pattern
   MuJoCoSimulator();
 
   // Lock the mutex for these calls
@@ -75,6 +76,7 @@ public:
   MuJoCoSimulator(MuJoCoSimulator &&) = delete;
   MuJoCoSimulator & operator=(MuJoCoSimulator &&) = delete;
 
+  // Singleton instance accessor
   // Use this in ROS2 code
   static MuJoCoSimulator & getInstance()
   {
@@ -86,7 +88,7 @@ public:
   mjModel * m = NULL;  // MuJoCo model
   mjData * d = NULL;   // MuJoCo data
 
-  // Buffers for data exchange with ROS2-control
+  // Buffers for data exchange with ros2_control
   std::vector<double> pos_cmd;
   std::vector<double> vel_cmd;
   std::vector<double> pos_state;
@@ -100,7 +102,9 @@ public:
   std::mutex command_mutex;
 
   // Control input callback for the solver
+  // Static callback function required by the C library
   static void controlCB(const mjModel * m, mjData * d);
+  // Instance method that contains the actual implementation
   void controlCBImpl(const mjModel * m, mjData * d);
 
   // Call this in a separate thread
