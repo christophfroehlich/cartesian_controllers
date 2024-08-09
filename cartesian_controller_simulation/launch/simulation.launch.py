@@ -124,18 +124,13 @@ def generate_launch_description():
     # Active controllers
     active_list = [
         "joint_state_broadcaster",
+        "joint_trajectory_controller",
     ]
-    active_spawners = [controller_spawner(controller) for controller in active_list]
+    active_spawners = [controller_spawner(
+        controller) for controller in active_list]
 
     # Inactive controllers
     inactive_list = [
-        "cartesian_compliance_controller",
-        "cartesian_force_controller",
-        "cartesian_motion_controller",
-        "motion_control_handle",
-        "joint_trajectory_controller",
-        "invalid_cartesian_compliance_controller",
-        "invalid_cartesian_force_controller",
     ]
     state = "--inactive" if distro in ["humble", "iron"] else "--stopped"
     inactive_spawners = [
@@ -152,7 +147,8 @@ def generate_launch_description():
 
     # Visualization
     rviz_config = PathJoinSubstitution(
-        [FindPackageShare("cartesian_controller_simulation"), "etc", "robot.rviz"]
+        [FindPackageShare("cartesian_controller_simulation"),
+         "etc", "robot.rviz"]
     )
     rviz = Node(
         package="rviz2",
